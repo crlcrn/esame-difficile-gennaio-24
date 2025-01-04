@@ -1,0 +1,64 @@
+import copy
+
+import networkx as nx
+from database.DAO import DAO
+
+class Model:
+    def __init__(self):
+        self.solBest = None
+        self._grafo = nx.DiGraph()
+        self.ricavo = {}
+        self.metodo = None
+        self.anno = None
+
+    def get_metodi(self):
+        return DAO.getAllMetods()
+
+
+    def build_graph(self, year, metodo, s):
+        prodotti = DAO.get_nodi(metodo, year)
+        for p in prodotti:
+            self._grafo.add_node(p)
+
+        prodotti_ricavi = DAO.get_ricavo_prodotto(metodo, year)
+
+        for prodotto1, ricavo1 in prodotti_ricavi:
+            ricavo1 = float(ricavo1)  # Assicurati che ricavo1 sia di tipo float
+
+            for prodotto2, ricavo2 in prodotti_ricavi:
+                if prodotto1 != prodotto2:  # Evita archi tra lo stesso prodotto
+                    ricavo2 = float(ricavo2)  # Assicurati che ricavo2 sia di tipo float
+                    if ricavo2 >= ricavo1 * (1 + s):  # Confronta i ricavi con la soglia S%
+                        self._grafo.add_edge(prodotto1, prodotto2)  # Aggiungi un arco orientato
+
+        return self._grafo
+
+    def get_reddito(self, metodo, anno):
+        reddito = []
+
+
+        for node in self._grafo.nodes():
+            if self._grafo.out_degree(node) == 0:  # Controllo solo nodi con out-degree uguale a 0
+                archi_entranti = self._grafo.in_degree(node)
+                ricavo_totale = DAO.getAllProfit(metodo, anno)  # Ottieni il ricavo totale
+                reddito.append((node, archi_entranti, ricavo_totale))  # Ricavo totale ottenuto da DAO
+        reddito.sort(key=lambda x: x[1], reverse=True)  # Ordinamento per archi entranti
+        return reddito
+    
+    def getBestPath(self):
+        for i in self._grafo.nodes:
+            if self._grafo.in_degree(i) == 0:
+                parziale = [i]
+                self.ricorsione(parziale)
+        return self.solBest, self.ricavo
+
+    def ricorsione(self, parziale):
+        if self._grafo.out_degree(parziale[-1])==0:
+            if len(self.solBest) < len(parziale):
+                self.solBest = copy.deepcopy(parziale)
+
+        for n in self._grafo.successors(parziale[-1]):
+            if n not in parziale:
+                parziale.append(n)
+                self.ricorsione(parziale)
+                parziale.pop()
