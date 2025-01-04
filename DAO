@@ -1,0 +1,90 @@
+from database.DB_connect import DBConnect
+from model.Metodo import Metodo
+
+
+class DAO():
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def getAllMetods():
+        conn = DBConnect.get_connection()
+
+        result = []
+
+        cursor = conn.cursor(dictionary=True)
+        query = """ select distinct *
+                    from go_methods gm 
+                    order by Order_method_type asc 
+                     """
+        cursor.execute(query)
+        for row in cursor:
+            result.append(
+                Metodo(**row))
+        cursor.close()
+        conn.close()
+        return result
+
+    @staticmethod
+    def get_nodi(metodo, anno):
+        conn = DBConnect.get_connection()
+
+        result = []
+
+        cursor = conn.cursor(dictionary=True)
+        query = """ select  distinct gp.Product_number 
+                    from go_daily_sales gds, go_products gp, go_methods gm 
+                    where gm.Order_method_code = gds.Order_method_code 
+                    and gp.Product_number = gds.Product_number 
+                    and gm.Order_method_type = %s and year(gds.`Date`) = %s
+                     """
+        cursor.execute(query,(metodo, anno))
+        for row in cursor:
+            result.append(row['Product_number'])
+        cursor.close()
+        conn.close()
+        return result
+
+    @staticmethod
+    def get_ricavo_prodotto(metodo, anno):
+        conn = DBConnect.get_connection()
+
+        result = []
+
+        cursor = conn.cursor(dictionary=True)
+        query = """ SELECT gds.Product_number, 
+               SUM(gds.Unit_sale_price * gds.Quantity) AS Total_revenue
+                    FROM go_daily_sales gds, go_products gp, go_methods gm
+                    WHERE gm.Order_method_code = gds.Order_method_code
+                    AND gp.Product_number = gds.Product_number
+                    AND gm.Order_method_type = %s
+                    AND YEAR(gds.`Date`) = %s
+                    GROUP BY gds.Product_number
+                     """
+        cursor.execute(query, (metodo, anno))
+        for row in cursor:
+            result.append((row['Product_number'], row['Total_revenue']))
+        cursor.close()
+        conn.close()
+        return result
+
+    @staticmethod
+    def getAllProfit(year, method):
+        conn = DBConnect.get_connection()
+
+        result = []
+
+        cursor = conn.cursor()
+        query = """SELECT gds.Product_number, SUM(Unit_sale_price * Quantity) AS prezzo
+                   FROM go_daily_sales gds
+                   WHERE YEAR(gds.`Date`) = %s AND gds.Order_method_code = %s
+                   GROUP BY gds.Product_number"""
+
+        cursor.execute(query, (year, method))
+
+        for row in cursor:
+            result.append((row["Product_number"], row["prezzo"]))
+
+        cursor.close()
+        conn.close()
+        return result
